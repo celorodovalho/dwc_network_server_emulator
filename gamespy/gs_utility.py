@@ -152,6 +152,7 @@ def login_profile_via_parsed_authtoken(authtoken_parsed, db):
     if "passwd" not in authtoken_parsed:
         console = 1
 
+    gamecd = authtoken_parsed['gamecd']
     password = authtoken_parsed['gsbrcd']
     gsbrcd = authtoken_parsed['gsbrcd']
     gameid = gsbrcd[:4]
@@ -164,13 +165,13 @@ def login_profile_via_parsed_authtoken(authtoken_parsed, db):
     if "cfc" in authtoken_parsed:
         console = 1
 
-    valid_user = db.check_user_exists(userid, gsbrcd)
+    valid_user = db.check_user_exists(userid, gsbrcd, uniquenick)
     if valid_user is False:
         profileid = db.create_user(userid, password, email, uniquenick,
                                    gsbrcd, console, csnum, cfc, bssid,
-                                   devname, birth, gameid, macadr)
+                                   devname, birth, gameid, macadr, gamecd)
     else:
-        profileid = db.perform_login(userid, password, gsbrcd)
+        profileid = db.perform_login(userid, password, gsbrcd, uniquenick)
 
     return userid, profileid, gsbrcd, uniquenick
 

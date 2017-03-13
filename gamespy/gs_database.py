@@ -132,7 +132,7 @@ class GamespyDatabase(object):
                         " firstname TEXT, lastname TEXT, stat TEXT,"
                         " partnerid TEXT, console INT, csnum TEXT,"
                         " cfc TEXT, bssid TEXT, devname BLOB, birth TEXT,"
-                        " gameid TEXT, enabled INT, zipcode TEXT, aim TEXT)")
+                        " gameid TEXT, enabled INT, zipcode TEXT, aim TEXT, gamecd TEXT)")
             tx.nonquery("CREATE TABLE IF NOT EXISTS sessions"
                         " (session TEXT, profileid INT, loginticket TEXT)")
             tx.nonquery("CREATE TABLE IF NOT EXISTS buddies"
@@ -148,7 +148,7 @@ class GamespyDatabase(object):
                         " (profileid INT, dindex TEXT, ptype TEXT,"
                         " data TEXT)")
             tx.nonquery("CREATE TABLE IF NOT EXISTS nas_logins"
-                        " (userid TEXT, authtoken TEXT, data TEXT)")
+                        " (userid TEXT, authtoken TEXT, data TEXT, gamecd TEXT, gsbrcd TEXT)")
             tx.nonquery("CREATE TABLE IF NOT EXISTS banned"
                         " (gameid TEXT, ipaddr TEXT)")
             tx.nonquery("CREATE TABLE IF NOT EXISTS pending (macadr TEXT)")
@@ -209,11 +209,11 @@ class GamespyDatabase(object):
 
         return profileid
 
-    def check_user_exists(self, userid, gsbrcd):
+    def check_user_exists(self, userid, gsbrcd, uniquenick):
         with Transaction(self.conn) as tx:
             row = tx.queryone(
-                "SELECT COUNT(*) FROM users WHERE userid = ? AND gsbrcd = ?",
-                (userid, gsbrcd)
+                "SELECT COUNT(*) FROM users WHERE userid = ? AND gsbrcd = ? AND uniquenick = ?",
+                (userid, gsbrcd, uniquenick)
             )
             count = int(row[0])
         return count > 0
@@ -247,11 +247,11 @@ class GamespyDatabase(object):
                 profile = self.get_dict(row)
         return profile
 
-    def perform_login(self, userid, password, gsbrcd):
+    def perform_login(self, userid, password, gsbrcd, uniquenick):
         with Transaction(self.conn) as tx:
             row = tx.queryone(
-                "SELECT * FROM users WHERE userid = ? and gsbrcd = ?",
-                (userid, gsbrcd)
+                "SELECT * FROM users WHERE userid = ? and gsbrcd = ? and uniquenick = ?",
+                (userid, gsbrcd, uniquenick)
             )
             r = self.get_dict(row)
 
@@ -270,8 +270,8 @@ class GamespyDatabase(object):
 
     def create_user(self, userid, password, email, uniquenick, gsbrcd,
                     console, csnum, cfc, bssid, devname, birth, gameid,
-                    macadr):
-        if not self.check_user_exists(userid, gsbrcd):
+                    macadr, gamecd):
+        if not self.check_user_exists(userid, gsbrcd, uniquenick):
             profileid = self.get_next_free_profileid()
 
             # Always 11??? Is this important? Not to be confused with dwc_pid.
@@ -299,12 +299,12 @@ class GamespyDatabase(object):
 
             with Transaction(self.conn) as tx:
                 q = "INSERT INTO users VALUES" \
-                    " (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                    " (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                 tx.nonquery(q, (profileid, str(userid), password, gsbrcd,
                                 email, uniquenick, pid, lon, lat, loc,
                                 firstname, lastname, stat, partnerid,
                                 console, csnum, cfc, bssid, devname, birth,
-                                gameid, enabled, zipcode, aim))
+                                gameid, enabled, zipcode, aim, gamecd))
 
             return profileid
         return None
@@ -547,7 +547,11 @@ class GamespyDatabase(object):
         possible to the real thing.
         """
         size = 80
-
+        gamecd = data["gamecd"]
+        if 'gsbrcd' in data and bool(data['gsbrcd']):
+            gsbrcd = data["gsbrcd"]
+        else:
+            gsbrcd = None
         # TODO: Another one of those questionable dupe-preventations
         while True:
             with Transaction(self.conn) as tx:
@@ -561,9 +565,17 @@ class GamespyDatabase(object):
                     break
 
         with Transaction(self.conn) as tx:
+            query = "SELECT * FROM nas_logins WHERE userid = ? AND gamecd = ?"
+            params = (userid, gamecd,)
+            if gsbrcd is not None:
+                query += " AND gsbrcd = ?"
+                params = (userid, gamecd, gsbrcd,)
+            else:
+                query += " AND gsbrcd IS NULL"
+            logger.log(logging.INFO, "queryquery: %s", query)
             row = tx.queryone(
-                "SELECT * FROM nas_logins WHERE userid = ?",
-                (userid,)
+                query,
+                params
             )
             r = self.get_dict(row)
 
@@ -577,14 +589,20 @@ class GamespyDatabase(object):
         with Transaction(self.conn) as tx:
             if r is None:  # no row, add it
                 tx.nonquery(
-                    "INSERT INTO nas_logins VALUES (?, ?, ?)",
-                    (userid, authtoken, data)
+                    "INSERT INTO nas_logins VALUES (?, ?, ?, ?, ?)",
+                    (userid, authtoken, data, gamecd, gsbrcd)
                 )
             else:
+                query = "UPDATE nas_logins SET authtoken = ?, data = ? WHERE userid = ? AND gamecd = ?"
+                params = (authtoken, data, userid, gamecd)
+                if gsbrcd is not None:
+                    query += " AND gsbrcd = ?"
+                    params = (authtoken, data, userid, gamecd, gsbrcd)
+                else:
+                    query += " AND gsbrcd IS NULL"
                 tx.nonquery(
-                    "UPDATE nas_logins SET authtoken = ?, data = ?"
-                    " WHERE userid = ?",
-                    (authtoken, data, userid)
+                    query,
+                    params
                 )
 
         return authtoken

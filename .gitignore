@@ -234,3 +234,8 @@ test*.py
 .private/*
 logs/*
 adminpageconf.json
+
+#############
+## Intellij IDEA
+#############
+.idea

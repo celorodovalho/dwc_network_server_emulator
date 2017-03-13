@@ -29,6 +29,7 @@ import collections
 import json
 import os.path
 import logging
+# import socket
 
 import other.utils as utils
 import gamespy.gs_utility as gs_utils
@@ -74,26 +75,55 @@ class AdminPage(resource.Resource):
     def __init__(self, adminpage):
         self.adminpage = adminpage
 
-    def get_header(self, title=None):
+    def get_header(self, title=None, path=None):
         if not title:
             title = 'AltWfc Admin Page'
         s = """
         <html>
         <head>
             <title>%s</title>
+            <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+            <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
         </head>
         <body>
-            <p>
-                %s | %s | %s
-            </p>
+        <nav class="navbar navbar-default">
+          <div class="container-fluid">
+            <div class="navbar-header">
+              <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </button>
+              <a class="navbar-brand" href="#">AltWFC Admin</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav">
+                    %s
+                    %s
+                    %s
+                </ul>
+            </div>
+          </div>
+        </nav>
+        <ol class="breadcrumb">
+          <li><a href="#">Home</a></li>
+          <li class="active">%s</li>
+        </ol>
+        <div class="container">
         """ % (title,
-               '<a href="/banhammer">All Users</a>',
-               '<a href="/consoles">Consoles</a>',
-               '<a href="/banlist">Active Bans</a>')
+               '<li class="'+('active' if (path == '/banhammer') else '')+'"><a href="/banhammer">All Users</a></li>',
+               '<li class="'+('active' if (path == '/consoles') else '')+'"><a href="/consoles">Consoles</a></li>',
+               '<li class="'+('active' if (path == '/banlist') else '')+'"><a href="/banlist">Active Bans</a></li>',
+               title)
         return s
 
     def get_footer(self):
         s = """
+        </div>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
         </body>
         </html>
         """
@@ -220,8 +250,9 @@ class AdminPage(resource.Resource):
         dbconn = sqlite3.connect('gpcm.db')
         logger.log(logging.INFO, "%s Viewed banlist", address)
         responsedata = """
-        <a href="http://%%20:%%20@%s">[CLICK HERE TO LOG OUT]</a>
-        <table border='1'>
+        <a class='btn btn-danger' href="http://%%20:%%20@%s">Logout</a>
+        <div class='table-responsive'>
+        <table class='table'>
         <tr>
             <td>gameid</td>
             <td>ipAddr</td>
@@ -240,12 +271,12 @@ class AdminPage(resource.Resource):
                     <input type='hidden' name='gameid' value='%s'>
                     <input type='hidden' name='ipaddr' value='%s'>
                     <input type='hidden' name='action' value='unban'>
-                    <input type='submit' value='----- UNBAN -----'>
+                    <button type='submit' class='btn btn-success'>Unban</button>
                 </form>
                 </td>
             </tr>""" % (gameid, ipaddr, gameid, ipaddr)
 
-        responsedata += "</table>"
+        responsedata += "</table></div>"
         dbconn.close()
         request.setHeader("Content-Type", "text/html; charset=utf-8")
         return responsedata
@@ -275,17 +306,19 @@ class AdminPage(resource.Resource):
         for row in dbconn.cursor().execute("SELECT * FROM BANNED"):
             banned_list.append(str(row[0])+":"+str(row[1]))
         responsedata = """
-        <a href="http://%%20:%%20@%s">[CLICK HERE TO LOG OUT]</a>
+        <a class='btn btn-danger' href="http://%%20:%%20@%s">Logout</a>
         <br><br>
-        <table border='1'>"
+        <div class='table-responsive'>
+        <table class='table'>
         <tr>
-            <td>ingamesn or devname</td>
-            <td>gameid</td>
-            <td>Enabled</td>
-            <td>newest dwc_pid</td>"
-            <td>gsbrcd</td>
-            <td>userid</td>
-            <td>ipAddr</td>
+            <th>ingamesn or devname</th>
+            <th>gameid</th>
+            <th>Enabled</th>
+            <th>newest dwc_pid</th>
+            <th>gsbrcd</th>
+            <th>userid</th>
+            <th>ipAddr</th>
+            <th>Actions</th>
         </tr>""" % request.getHeader('host')
 
         for row in dbconn.cursor().execute(sqlstatement):
@@ -333,7 +366,7 @@ class AdminPage(resource.Resource):
                         <input type='hidden' name='gameid' value='%s'>
                         <input type='hidden' name='ipaddr' value='%s'>
                         <input type='hidden' name='action' value='unban'>
-                        <input type='submit' value='----- unban -----'>
+                        <button type='submit' class='btn btn-success'>Unban</button>
                     </form>
                     </td>
                 </tr>""" % (gameid, ipaddr)
@@ -344,13 +377,13 @@ class AdminPage(resource.Resource):
                         <input type='hidden' name='gameid' value='%s'>
                         <input type='hidden' name='ipaddr' value='%s'>
                         <input type='hidden' name='action' value='ban'>
-                        <input type='submit' value='Ban'>
+                        <button type='submit' class='btn btn-danger'>Ban</button>
                     </form>
                     </td>
                 </tr>
                 """ % (gameid, ipaddr)
 
-        responsedata += "</table>"
+        responsedata += "</table></div>"
         dbconn.close()
         request.setHeader("Content-Type", "text/html; charset=utf-8")
         return responsedata.encode('utf-8')
@@ -401,14 +434,17 @@ class AdminPage(resource.Resource):
             active_list.append(str(row[0]))
         logger.log(logging.INFO, "%s Viewed console list", address)
         responsedata = (
-            '<a href="http://%20:%20@' + request.getHeader('host') +
-            '">[CLICK HERE TO LOG OUT]</a>'
+            '<a class ="btn btn-danger" href="http://%20:%20@' + request.getHeader('host') +
+            '">Logout</a>'
             "<form action='updateconsolelist' method='POST'>"
-            "macadr:<input type='text' name='macadr'>\r\n"
+            "<div class='form-group'>"
+            "<label for='macadr'>MAC Address (macadr): </label>"
+            "<input type='text' name='macadr' class='form-control' placeholder='MAC Address'>"
+            "</div>"
             "<input type='hidden' name='action' value='add'>\r\n"
-            "<input type='submit' value='Register and activate console'>"
+            "<button type='submit' class='btn btn-success'>Register and activate console</button>"
             "</form>\r\n"
-            "<table border='1'>"
+            "<div class='table-responsive'><table class='table'>"
             "<tr><td>macadr</td></tr>\r\n"
         )
         for row in dbconn.cursor().execute("SELECT * FROM pending"):
@@ -421,7 +457,7 @@ class AdminPage(resource.Resource):
                     <form action='updateconsolelist' method='POST'>
                         <input type='hidden' name='macadr' value='%s'>
                         <input type='hidden' name='action' value='remove'>
-                        <input type='submit' value='Un-register console'>
+                        <button type='submit' class='btn btn-danger'>Un-register console</button>
                     </form>
                     </td>
                 </tr>""" % (macadr, macadr)
@@ -433,11 +469,11 @@ class AdminPage(resource.Resource):
                     <form action='updateconsolelist' method='POST'>
                         <input type='hidden' name='macadr' value='%s'>
                         <input type='hidden' name='action' value='activate'>
-                        <input type='submit' value='Activate console'>
+                        <button type='submit' class='btn btn-success'>Activate console</button>
                     </form>
                     </td>
                 </tr>""" % (macadr, macadr)
-        responsedata += "</table>"
+        responsedata += "</table></div>"
         dbconn.close()
         request.setHeader("Content-Type", "text/html; charset=utf-8")
         return responsedata
@@ -460,7 +496,7 @@ class AdminPage(resource.Resource):
         elif request.path == "/consoles":
             title = "AltWfc Console List"
             response = self.render_consolelist(request)
-        return self.get_header(title) + response + self.get_footer()
+        return self.get_header(title, request.path) + response + self.get_footer()
 
     def render_POST(self, request):
         if not adminpageconf:
@@ -474,7 +510,7 @@ class AdminPage(resource.Resource):
         if request.path == "/updateconsolelist":
             return self.update_consolelist(request)
         else:
-            return self.get_header() + self.get_footer()
+            return self.get_header(None, request.path) + self.get_footer()
 
 
 class AdminPageServer(object):
